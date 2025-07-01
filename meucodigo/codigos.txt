@@ -1,0 +1,751 @@
+from flask import Flask, request, redirect, render_template_string
+import sqlite3
+import os
+from datetime import datetime
+
+app = Flask(__name__)
+
+# HTML da página inicial
+HTML_INDEX = """
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Biblioteca Nova era Novos Tempos</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+    input, button { margin: 5px; padding: 8px; width: 200px; }
+  </style>
+</head>
+<body>
+  <h1>Cadastro de Livros Biblioteca Nova Era</h1>
+  <form action="/cadastrar" method="POST">
+    <input type="text" name="titulo" placeholder="Título" required><br>
+    <input type="text" name="autor" placeholder="Autor" required><br>
+    <input type="number" name="numero" placeholder="Número do Livro" required><br>
+    <input type="text" name="categoria" placeholder="Categoria" required><br>
+    <button type="submit">Cadastrar</button>
+  </form>
+  <br>
+  <a href="/livros">Ver Acervo</a> |
+  <a href="/cadastrar_usuario">Cadastrar Usuário</a> |
+  <a href="/lista_emprestimos">Ver Empréstimos</a>
+python 
+</body>
+</html>
+"""
+HTML_INDEX = """
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Biblioteca Nova era Novos Tempos</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+    input, button { margin: 5px; padding: 8px; width: 200px; }
+    a { display: block; margin: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Cadastro de Livros Biblioteca Nova Era</h1>
+  <form action="/cadastrar" method="POST">
+    <input type="text" name="titulo" placeholder="Título" required><br>
+    <input type="text" name="autor" placeholder="Autor" required><br>
+    <input type="number" name="numero" placeholder="Número do Livro" required><br>
+    <input type="text" name="categoria" placeholder="Categoria" required><br>
+    <button type="submit">Cadastrar</button>
+  </form>
+  <br>
+  <a href="/livros">Ver Acervo</a>
+  <a href="/cadastrar_usuario">Cadastrar Usuário</a>
+  <a href="/emprestimos">Registrar Empréstimo</a>
+  <a href="/ver_emprestimos">Ver Empréstimos</a>
+</body>
+</html>
+"""
+
+# Adicionando uma rota para listar os emprestimos
+# Atualize a parte final do seu código com a nova rota e o HTML correspondente
+
+HTML_LISTA_EMPRESTIMOS = """
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Lista de Empréstimos</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+    table { margin: auto; border-collapse: collapse; }
+    th, td { border: 1px solid black; padding: 8px; }
+  </style>
+</head>
+<body>
+  <h2>Empréstimos Realizados</h2>
+  <table>
+    <tr>
+      <th>Livro</th>
+      <th>Usuário</th>
+      <th>Data de Saída</th>
+      <th>Data de Retorno</th>
+    </tr>
+    {% for emprestimo in emprestimos %}
+    <tr>
+      <td>{{ emprestimo[0] }}</td>
+      <td>{{ emprestimo[1] }}</td>
+      <td>{{ emprestimo[2] }}</td>
+      <td>{{ emprestimo[3] }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <br>
+  <a href="/">Voltar</a>
+</body>
+</html>
+
+"""
+
+@app.route('/lista_emprestimos')
+def listar_emprestimos():
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT livros.titulo, usuarios.nome, emprestimos.data_saida, emprestimos.data_retorno
+        FROM emprestimos
+        JOIN livros ON emprestimos.livro_id = livros.id
+        JOIN usuarios ON emprestimos.usuario_id = usuarios.id
+    ''')
+    emprestimos = cursor.fetchall()
+    conn.close()
+    return render_template_string(HTML_LISTA_EMPRESTIMOS, emprestimos=emprestimos)
+
+# Não se esqueça de adicionar um link para esta nova página no HTML principal (HTML_INDEX) se quiser acessá-la diretamente pela interface
+
+
+# HTML da listagem de livros
+HTML_LISTA = """
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Acervo de Livros</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+    table { margin: auto; border-collapse: collapse; }
+    th, td { border: 1px solid black; padding: 8px; }
+  </style>
+</head>
+<body>
+  <h2>Acervo de Livros</h2>
+  <table>
+    <tr>
+      <th>Título</th>
+      <th>Autor</th>
+      <th>Número</th>
+      <th>Categoria</th>
+    </tr>
+    {% for livro in livros %}
+    <tr>
+      <td>{{ livro[0] }}</td>
+      <td>{{ livro[1] }}</td>
+      <td>{{ livro[2] }}</td>
+      <td>{{ livro[3] }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <br>
+  <a href="/">Voltar</a>
+</body>
+</html>
+"""
+
+# HTML do formulário de cadastro de usuários
+HTML_CADASTRO_USUARIO = """
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Cadastro de Usuário</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+    input, button { margin: 5px; padding: 8px; width: 250px; }
+  </style>
+</head>
+<body>
+  <h1>Cadastro de Usuários</h1>
+  <form action="/cadastrar_usuario" method="POST">
+    <input type="text" name="nome" placeholder="Nome Completo" required><br>
+    <input type="text" name="rg" placeholder="RG" required><br>
+    <input type="email" name="email" placeholder="E-mail" required><br>
+    <input type="text" name="telefone" placeholder="Telefone" required><br>
+    <input type="text" name="endereco" placeholder="Endereço" required><br>
+    <button type="submit">Cadastrar Usuário</button>
+  </form>
+  <br>
+  <a href="/usuarios">Ver Lista de Usuários</a> |
+  <a href="/">Voltar</a>
+</body>
+</html>
+"""
+
+# HTML da listagem de usuários
+HTML_LISTA_USUARIOS = """
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Usuários Cadastrados</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+    table { margin: auto; border-collapse: collapse; }
+    th, td { border: 1px solid black; padding: 8px; }
+  </style>
+</head>
+<body>
+  <h2>Lista de Usuários</h2>
+  <table>
+    <tr>
+      <th>Nome</th>
+      <th>RG</th>
+      <th>E-mail</th>
+      <th>Telefone</th>
+      <th>Endereço</th>
+    </tr>
+    {% for usuario in usuarios %}
+    <tr>
+      <td>{{ usuario[0] }}</td>
+      <td>{{ usuario[1] }}</td>
+      <td>{{ usuario[2] }}</td>
+      <td>{{ usuario[3] }}</td>
+      <td>{{ usuario[4] }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <br>
+  <a href="/">Voltar</a>
+</body>
+</html>
+"""
+
+# HTML do formulário de empréstimo
+HTML_EMPRESTIMO = """
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Registrar Empréstimo</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+    input, select, button { margin: 5px; padding: 8px; width: 250px; }
+  </style>
+</head>
+<body>
+  <h1>Registrar Empréstimo</h1>
+  <form action="/emprestimos" method="POST">
+    <select name="usuario_id" required>
+      <option value="">Selecione o Usuário</option>
+      {% for usuario in usuarios %}
+        <option value="{{ usuario[0] }}">{{ usuario[1] }}</option>
+      {% endfor %}
+    </select><br>
+    <select name="livro_id" required>
+      <option value="">Selecione o Livro</option>
+      {% for livro in livros %}
+        <option value="{{ livro[0] }}">{{ livro[1] }}</option>
+      {% endfor %}
+    </select><br>
+    <input type="date" name="data_saida" required><br>
+    <input type="date" name="data_retorno" required><br>
+    <button type="submit">Registrar Empréstimo</button>
+  </form>
+  <br>
+  <a href="/">Voltar</a>
+</body>
+</html>
+"""
+
+# Inicialização do banco
+
+def init_db():
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS livros (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo TEXT NOT NULL,
+            autor TEXT NOT NULL,
+            numero INTEGER NOT NULL,
+            categoria TEXT NOT NULL
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            rg TEXT NOT NULL,
+            email TEXT NOT NULL,
+            telefone TEXT NOT NULL,
+            endereco TEXT NOT NULL
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS emprestimos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario_id INTEGER,
+            livro_id INTEGER,
+            data_saida TEXT,
+            data_retorno TEXT,
+            FOREIGN KEY(usuario_id) REFERENCES usuarios(id),
+            FOREIGN KEY(livro_id) REFERENCES livros(id)
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+@app.route('/')
+def index():
+    return render_template_string(HTML_INDEX)
+
+@app.route('/cadastrar', methods=['POST'])
+def cadastrar():
+    titulo = request.form['titulo']
+    autor = request.form['autor']
+    numero = request.form['numero']
+    categoria = request.form['categoria']
+
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO livros (titulo, autor, numero, categoria)
+        VALUES (?, ?, ?, ?)
+    ''', (titulo, autor, numero, categoria))
+    conn.commit()
+    conn.close()
+    return redirect('/livros')
+
+@app.route('/livros')
+def listar():
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT titulo, autor, numero, categoria FROM livros')
+    livros = cursor.fetchall()
+    conn.close()
+    return render_template_string(HTML_LISTA, livros=livros)
+
+@app.route('/cadastrar_usuario', methods=['GET', 'POST'])
+def cadastrar_usuario():
+    if request.method == 'POST':
+        nome = request.form['nome']
+        rg = request.form['rg']
+        email = request.form['email']
+        telefone = request.form['telefone']
+        endereco = request.form['endereco']
+
+        conn = sqlite3.connect('database.db')
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO usuarios (nome, rg, email, telefone, endereco)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (nome, rg, email, telefone, endereco))
+        conn.commit()
+        conn.close()
+        return redirect('/usuarios')
+    return render_template_string(HTML_CADASTRO_USUARIO)
+
+@app.route('/usuarios')
+def listar_usuarios():
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT nome, rg, email, telefone, endereco FROM usuarios')
+    usuarios = cursor.fetchall()
+    conn.close()
+    return render_template_string(HTML_LISTA_USUARIOS, usuarios=usuarios)
+
+@app.route('/emprestimos', methods=['GET', 'POST'])
+def registrar_emprestimo():
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+    if request.method == 'POST':
+        usuario_id = request.form['usuario_id']
+        livro_id = request.form['livro_id']
+        data_saida = request.form['data_saida']
+        data_retorno = request.form['data_retorno']
+
+        cursor.execute('''
+            INSERT INTO emprestimos (usuario_id, livro_id, data_saida, data_retorno)
+            VALUES (?, ?, ?, ?)
+        ''', (usuario_id, livro_id, data_saida, data_retorno))
+        conn.commit()
+        conn.close()
+        return redirect('/')
+    cursor.execute('SELECT id, nome FROM usuarios')
+    usuarios = cursor.fetchall()
+    cursor.execute('SELECT id, titulo FROM livros')
+    livros = cursor.fetchall()
+    conn.close()
+    return render_template_string(HTML_EMPRESTIMO, usuarios=usuarios, livros=livros)
+
+if __name__ == '__main__':
+    init_db()
+    app.run(debug=True)
+
+
+inicio do codigo certo.
+from flask import Flask, request, redirect, render_template_string
+import sqlite3
+from datetime import datetime
+
+app = Flask(__name__)
+
+# HTML da página inicial
+HTML_INDEX = """
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Biblioteca Nova era Novos Tempos</title>
+  <style>
+ 
+    body {
+  margin: 0;
+  padding: 0;
+  font-family: Arial, sans-serif;
+  background-image: url('/static/bib.jpeg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  height: 92vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: center;
+  padding-top: 50px;
+}
+
+  </style>
+  <form action="/cadastrar/" method="POST" style="background-color: rgba(255, 255, 255, 0.7);
+  padding: 40px; border-radius: 20px;">
+
+</head>
+</body>
+  <h1>Cadastro de Livros Biblioteca Nova Era</h1>
+  
+
+<form action="/cadastrar" method="POST">
+    <input type="text" name="titulo" placeholder="Título" required><br>
+    <input type="text" name="autor" placeholder="Autor" required><br>
+    <input type="number" name="numero" placeholder="Número do Livro" required><br>
+    <input type="text" name="categoria" placeholder="Categoria" required><br>
+    <button type="submit">Cadastrar</button>
+  </form>
+  <br>
+  <a href="/livros">Ver Acervo</a>
+  <a href="/cadastrar_usuario">Cadastrar Usuário</a>
+  <a href="/emprestimos">Registrar Empréstimo</a>
+  <a href="/lista_emprestimos">Ver Empréstimos</a>
+</body>
+</html>
+"""
+
+HTML_LISTA = """
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Acervo de Livros</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin-top: 80px; }
+    table { margin: auto; border-collapse: collapse; }
+    th, td { border: 1px solid black; padding: 8px; }
+  </style>
+</head>
+<body>
+  <h2>Acervo de Livros</h2>
+  <table>
+    <tr>
+      <th>Título</th>
+      <th>Autor</th>
+      <th>Número</th>
+      <th>Categoria</th>
+    </tr>
+    {% for livro in livros %}
+    <tr>
+      <td>{{ livro[0] }}</td>
+      <td>{{ livro[1] }}</td>
+      <td>{{ livro[2] }}</td>
+      <td>{{ livro[3] }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <br>
+  <a href="/">Voltar</a>
+</body>
+</html>
+"""
+
+HTML_CADASTRO_USUARIO = """
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Cadastro de Usuário</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin-top: 80px; }
+    input, button { margin: 5px; padding: 8px; width: 250px; }
+  </style>
+</head>
+<body>
+  <h1>Cadastro de Usuários</h1>
+  <form action="/cadastrar_usuario" method="POST">
+    <input type="text" name="nome" placeholder="Nome Completo" required><br>
+    <input type="text" name="rg" placeholder="RG" required><br>
+    <input type="email" name="email" placeholder="E-mail" required><br>
+    <input type="text" name="telefone" placeholder="Telefone" required><br>
+    <input type="text" name="endereco" placeholder="Endereço" required><br>
+    <button type="submit">Cadastrar Usuário</button>
+  </form>
+  <br>
+  <a href="/usuarios">Ver Lista de Usuários</a> |
+  <a href="/">Voltar</a>
+</body>
+</html>
+"""
+
+HTML_LISTA_USUARIOS = """
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Usuários Cadastrados</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+    table { margin: auto; border-collapse: collapse; }
+    th, td { border: 1px solid black; padding: 8px; }
+  </style>
+</head>
+<body>
+  <h2>Lista de Usuários</h2>
+  <table>
+    <tr>
+      <th>Nome</th>
+      <th>RG</th>
+      <th>E-mail</th>
+      <th>Telefone</th>
+      <th>Endereço</th>
+    </tr>
+    {% for usuario in usuarios %}
+    <tr>
+      <td>{{ usuario[0] }}</td>
+      <td>{{ usuario[1] }}</td>
+      <td>{{ usuario[2] }}</td>
+      <td>{{ usuario[3] }}</td>
+      <td>{{ usuario[4] }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <br>
+  <a href="/">Voltar</a>
+</body>
+</html>
+"""
+
+HTML_EMPRESTIMO = """
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Registrar Empréstimo</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+    input, select, button { margin: 5px; padding: 8px; width: 250px; }
+  </style>
+</head>
+<body>
+  <h1>Registrar Empréstimo</h1>
+  <form action="/emprestimos" method="POST">
+    <select name="usuario_id" required>
+      <option value="">Selecione o Usuário</option>
+      {% for usuario in usuarios %}
+        <option value="{{ usuario[0] }}">{{ usuario[1] }}</option>
+      {% endfor %}
+    </select><br>
+    <select name="livro_id" required>
+      <option value="">Selecione o Livro</option>
+      {% for livro in livros %}
+        <option value="{{ livro[0] }}">{{ livro[1] }}</option>
+      {% endfor %}
+    </select><br>
+    <input type="date" name="data_saida" required><br>
+    <input type="date" name="data_retorno" required><br>
+    <button type="submit">Registrar Empréstimo</button>
+  </form>
+  <br>
+  <a href="/">Voltar</a>
+</body>
+</html>
+"""
+
+HTML_LISTA_EMPRESTIMOS = """
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Lista de Empréstimos</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+    table { margin: auto; border-collapse: collapse; }
+    th, td { border: 1px solid black; padding: 8px; }
+  </style>
+</head>
+<body>
+  <h2>Empréstimos Realizados</h2>
+  <table>
+    <tr>
+      <th>Livro</th>
+      <th>Usuário</th>
+      <th>Data de Saída</th>
+      <th>Data de Retorno</th>
+    </tr>
+    {% for emprestimo in emprestimos %}
+    <tr>
+      <td>{{ emprestimo[0] }}</td>
+      <td>{{ emprestimo[1] }}</td>
+      <td>{{ emprestimo[2] }}</td>
+      <td>{{ emprestimo[3] }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  <br>
+  <a href="/">Voltar</a>
+</body>
+</html>
+"""
+
+# Inicializa o banco
+def init_db():
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS livros (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo TEXT NOT NULL,
+            autor TEXT NOT NULL,
+            numero INTEGER NOT NULL,
+            categoria TEXT NOT NULL
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            rg TEXT NOT NULL,
+            email TEXT NOT NULL,
+            telefone TEXT NOT NULL,
+            endereco TEXT NOT NULL
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS emprestimos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario_id INTEGER,
+            livro_id INTEGER,
+            data_saida TEXT,
+            data_retorno TEXT,
+            FOREIGN KEY(usuario_id) REFERENCES usuarios(id),
+            FOREIGN KEY(livro_id) REFERENCES livros(id)
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+@app.route('/')
+def index():
+    return render_template_string(HTML_INDEX)
+
+@app.route('/cadastrar', methods=['POST'])
+def cadastrar():
+    titulo = request.form['titulo']
+    autor = request.form['autor']
+    numero = request.form['numero']
+    categoria = request.form['categoria']
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO livros (titulo, autor, numero, categoria) VALUES (?, ?, ?, ?)',
+                   (titulo, autor, numero, categoria))
+    conn.commit()
+    conn.close()
+    return redirect('/livros')
+
+@app.route('/livros')
+def listar():
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT titulo, autor, numero, categoria FROM livros')
+    livros = cursor.fetchall()
+    conn.close()
+    return render_template_string(HTML_LISTA, livros=livros)
+
+@app.route('/cadastrar_usuario', methods=['GET', 'POST'])
+def cadastrar_usuario():
+    if request.method == 'POST':
+        nome = request.form['nome']
+        rg = request.form['rg']
+        email = request.form['email']
+        telefone = request.form['telefone']
+        endereco = request.form['endereco']
+        conn = sqlite3.connect('database.db')
+        cursor = conn.cursor()
+        cursor.execute('INSERT INTO usuarios (nome, rg, email, telefone, endereco) VALUES (?, ?, ?, ?, ?)',
+                       (nome, rg, email, telefone, endereco))
+        conn.commit()
+        conn.close()
+        return redirect('/usuarios')
+    return render_template_string(HTML_CADASTRO_USUARIO)
+
+@app.route('/usuarios')
+def listar_usuarios():
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT nome, rg, email, telefone, endereco FROM usuarios')
+    usuarios = cursor.fetchall()
+    conn.close()
+    return render_template_string(HTML_LISTA_USUARIOS, usuarios=usuarios)
+
+@app.route('/emprestimos', methods=['GET', 'POST'])
+def registrar_emprestimo():
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+    if request.method == 'POST':
+        usuario_id = request.form['usuario_id']
+        livro_id = request.form['livro_id']
+        data_saida = request.form['data_saida']
+        data_retorno = request.form['data_retorno']
+        cursor.execute('INSERT INTO emprestimos (usuario_id, livro_id, data_saida, data_retorno) VALUES (?, ?, ?, ?)',
+                       (usuario_id, livro_id, data_saida, data_retorno))
+        conn.commit()
+        conn.close()
+        return redirect('/')
+    cursor.execute('SELECT id, nome FROM usuarios')
+    usuarios = cursor.fetchall()
+    cursor.execute('SELECT id, titulo FROM livros')
+    livros = cursor.fetchall()
+    conn.close()
+    return render_template_string(HTML_EMPRESTIMO, usuarios=usuarios, livros=livros)
+
+@app.route('/lista_emprestimos')
+def listar_emprestimos():
+    conn = sqlite3.connect('database.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT livros.titulo, usuarios.nome, emprestimos.data_saida, emprestimos.data_retorno
+        FROM emprestimos
+        JOIN livros ON emprestimos.livro_id = livros.id
+        JOIN usuarios ON emprestimos.usuario_id = usuarios.id
+    ''')
+    emprestimos = cursor.fetchall()
+    conn.close()
+    return render_template_string(HTML_LISTA_EMPRESTIMOS, emprestimos=emprestimos)
+
+if __name__ == '__main__':
+    init_db()
+    app.run(debug=True)
